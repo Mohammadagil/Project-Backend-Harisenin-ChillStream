@@ -12,7 +12,7 @@ datasource db {
 
 model Genre {
   id   Int    @id @default(autoincrement()) @db.UnsignedInt
-  name String @db.VarChar(50)
+  name String @unique @db.VarChar(50)
 
   films Film[]
 
