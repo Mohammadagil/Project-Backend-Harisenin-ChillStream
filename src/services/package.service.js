@@ -1,7 +1,7 @@
 const prisma = require("../config/prisma");
 
 async function getAllPackages() {
-  return prisma.package.findMany();
+  return prisma.package.findMany({ where: { is_active: true } });
 }
 
 async function getPackageById(id) {
@@ -16,8 +16,12 @@ async function updatePackage(id, data) {
   return prisma.package.update({ where: { id }, data });
 }
 
-async function deletePackage(id) {
-  return prisma.package.delete({ where: { id } });
+async function deactivatePackage(id) {
+  return prisma.package.update({ where: { id }, data: { is_active: false } });
+}
+
+async function countOrdersByPackageId(id) {
+  return prisma.order.count({ where: { package_id: id } });
 }
 
 module.exports = {
@@ -25,5 +29,6 @@ module.exports = {
   getPackageById,
   createPackage,
   updatePackage,
-  deletePackage,
+  deactivatePackage,
+  countOrdersByPackageId,
 };

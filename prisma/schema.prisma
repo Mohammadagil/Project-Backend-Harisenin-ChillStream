@@ -28,6 +28,7 @@ model Film {
   release_year Int    @db.UnsignedSmallInt
   access_type  Int    @db.UnsignedTinyInt
   content_type Int    @db.UnsignedTinyInt
+  url_video    String? @db.VarChar(255)
 
   genre    Genre     @relation(fields: [genre_id], references: [id])
   episodes Episode[]
@@ -47,7 +48,7 @@ model Episode {
   url_video      String @db.VarChar(255)
   episode_number Int    @db.UnsignedInt
 
-  film Film @relation(fields: [film_id], references: [id])
+  film Film @relation(fields: [film_id], references: [id], onDelete: Cascade)
 
   @@index([film_id])
   @@index([film_id, episode_number])
@@ -59,6 +60,7 @@ model User {
   name     String @db.VarChar(100)
   email    String @unique @db.VarChar(150)
   password String @db.VarChar(255)
+  role     String @default("user") @db.VarChar(20)
 
   orders   Order[]
   my_lists MyList[]
@@ -71,6 +73,7 @@ model Package {
   name     String  @db.VarChar(50)
   price    Decimal @db.Decimal(10, 2)
   duration Int     @db.UnsignedSmallInt
+  is_active Boolean @default(true)
 
   orders Order[]
 
@@ -101,7 +104,7 @@ model MyList {
   date_added DateTime @db.DateTime
 
   user User @relation(fields: [user_id], references: [id])
-  film Film @relation(fields: [film_id], references: [id])
+  film Film @relation(fields: [film_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, film_id])
   @@map("my_lists")

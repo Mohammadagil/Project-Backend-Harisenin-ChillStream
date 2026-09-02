@@ -16,14 +16,9 @@ async function updatePayment(id, data) {
   return prisma.payment.update({ where: { id }, data });
 }
 
-async function deletePayment(id) {
-  return prisma.payment.delete({ where: { id } });
-}
-
 module.exports = {
   getAllPayments,
   getPaymentById,
   createPayment,
   updatePayment,
-  deletePayment,
 };

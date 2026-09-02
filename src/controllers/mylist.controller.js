@@ -41,6 +41,9 @@ async function createMyList(req, res) {
     if (error.code === "P2002") {
       throw new ApiError("Film already exist in watchlist", 409);
     }
+    if (error.code === "P2003") {
+      throw new ApiError("User or Film not found", 400);
+    }
     throw error;
   }
 }

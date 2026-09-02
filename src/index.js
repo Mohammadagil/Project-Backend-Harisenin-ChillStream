@@ -24,8 +24,10 @@ app.use('/api', routes);
 // error-handling middleware, HARUS paling akhir setelah semua route
 app.use((err, req, res, next) => {
     console.error(err);
-    return res.status(err.statusCode || 500).json({
-        message: err.message || 'Internal server error',
+    const statusCode = err.statusCode || 500;
+    const message = err.statusCode ? err.message : 'Internal server error';
+    return res.status(statusCode).json({
+        message: message,
         data: null,
         status: 'error'
     });

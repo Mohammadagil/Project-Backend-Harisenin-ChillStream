@@ -1,4 +1,5 @@
 const paymentService = require("../services/payment.service");
+const orderService = require("../services/order.service");
 const { ApiError } = require("../utils/ApiError");
 
 async function getAllPayments(req, res) {
@@ -25,13 +26,26 @@ async function getPaymentById(req, res) {
 }
 
 async function createPayment(req, res) {
-  const { order_id, method, amount, status } = req.body;
-  const payment = await paymentService.createPayment({ order_id, method, amount, status });
-  res.status(201).json({
-    message: "Payment created successfully",
-    data: payment,
-    status: "success",
-  });
+  const { order_id, method, status } = req.body;
+
+  const order = await orderService.getOrderById(BigInt(order_id));
+  if (!order) {
+    throw new ApiError("Order not found", 404);
+  }
+
+  try {
+    const payment = await paymentService.createPayment({ order_id, method, amount: order.package.price, status });
+    res.status(201).json({
+      message: "Payment created successfully",
+      data: payment,
+      status: "success",
+    });
+  } catch (error) {
+    if (error.code == "P2002") {
+      throw new ApiError("Payment for this order already exists", 409);
+    }
+    throw error;
+  }
 }
 
 async function updatePayment(req, res) {
@@ -40,25 +54,11 @@ async function updatePayment(req, res) {
   if (!existing) {
     throw new ApiError("Payment not found", 404);
   }
-  const { order_id, method, amount, status } = req.body;
-  const payment = await paymentService.updatePayment(id, { order_id, method, amount, status });
+  const { method } = req.body;
+  const payment = await paymentService.updatePayment(id, { method });
   res.status(200).json({
     message: "Payment updated successfully",
     data: payment,
-    status: "success",
-  });
-}
-
-async function deletePayment(req, res) {
-  const id = BigInt(req.params.id);
-  const existing = await paymentService.getPaymentById(id);
-  if (!existing) {
-    throw new ApiError("Payment not found", 404);
-  }
-  await paymentService.deletePayment(id);
-  res.status(200).json({
-    message: "Payment deleted successfully",
-    data: null,
     status: "success",
   });
 }
@@ -68,5 +68,4 @@ module.exports = {
   getPaymentById,
   createPayment,
   updatePayment,
-  deletePayment,
 };

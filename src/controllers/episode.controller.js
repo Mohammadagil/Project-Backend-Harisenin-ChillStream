@@ -26,12 +26,19 @@ async function getEpisodeById(req, res) {
 
 async function createEpisode(req, res) {
   const { film_id, title, duration, url_video, episode_number } = req.body;
-  const episode = await episodeService.createEpisode({ film_id, title, duration, url_video, episode_number });
-  res.status(201).json({
-    message: "Episode created successfully",
-    data: episode,
-    status: "success",
-  });
+  try {
+    const episode = await episodeService.createEpisode({ film_id, title, duration, url_video, episode_number });
+    res.status(201).json({
+      message: "Episode created successfully",
+      data: episode,
+      status: "success",
+    });
+  } catch (error) {
+    if (error.code === "P2003") {
+      throw new ApiError("Film not found", 400);
+    }
+    throw error;
+  }
 }
 
 async function updateEpisode(req, res) {
@@ -41,12 +48,19 @@ async function updateEpisode(req, res) {
     throw new ApiError("Episode not found", 404);
   }
   const { film_id, title, duration, url_video, episode_number } = req.body;
-  const episode = await episodeService.updateEpisode(id, { film_id, title, duration, url_video, episode_number });
-  res.status(200).json({
-    message: "Episode updated successfully",
-    data: episode,
-    status: "success",
-  });
+  try {
+    const episode = await episodeService.updateEpisode(id, { film_id, title, duration, url_video, episode_number });
+    res.status(200).json({
+      message: "Episode updated successfully",
+      data: episode,
+      status: "success",
+    });
+  } catch (error) {
+    if (error.code === "P2003") {
+      throw new ApiError("Film not found", 400);
+    }
+    throw error;
+  }
 }
 
 async function deleteEpisode(req, res) {

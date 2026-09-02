@@ -39,8 +39,17 @@ async function updatePackage(req, res) {
   if (!existing) {
     throw new ApiError("Package not found", 404);
   }
-  const { name, price, duration } = req.body;
-  const packageData = await packageService.updatePackage(id, { name, price, duration });
+  const { name, price, duration, is_active } = req.body;
+  const isEditingLockedFields = name !== undefined || price !== undefined || duration !== undefined;
+
+  if (isEditingLockedFields) {
+    const orderCount = await packageService.countOrdersByPackageId(id);
+    if (orderCount > 0) {
+      throw new ApiError("Package sudah dipakai order, name/price/duration tidak bisa diubah", 409);
+    }
+  }
+
+  const packageData = await packageService.updatePackage(id, { name, price, duration, is_active });
   res.status(200).json({
     message: "Package updated successfully",
     data: packageData,
@@ -54,9 +63,9 @@ async function deletePackage(req, res) {
   if (!existing) {
     throw new ApiError("Package not found", 404);
   }
-  await packageService.deletePackage(id);
+  await packageService.deactivatePackage(id);
   res.status(200).json({
-    message: "Package deleted successfully",
+    message: "Package deactivated successfully",
     data: null,
     status: "success",
   });

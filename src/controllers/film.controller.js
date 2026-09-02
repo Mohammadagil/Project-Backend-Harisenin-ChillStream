@@ -24,13 +24,21 @@ async function getFilmById(req, res) {
 }
 
 async function createFilm(req, res) {
-  const { genre_id, description, poster, release_year, access_type, content_type, title } = req.body;
-  const film = await filmService.createFilm({genre_id, description, poster, release_year, access_type, content_type, title});
-  res.status(201).json({
-    message: "Film created successfully",
-    data: film,
-    status: "success",
-  });
+  const { genre_id, description, poster, release_year, access_type, content_type, title, url_video } = req.body;
+
+  try {
+    const film = await filmService.createFilm({ genre_id, description, poster, release_year, access_type, content_type, title, url_video });
+    res.status(201).json({
+      message: "Film created successfully",
+      data: film,
+      status: "success",
+    });
+  } catch (error) {
+    if (error.code == "P2003") {
+      throw new ApiError("Genre not found", 400);
+    }
+    throw error;
+  }
 }
 
 async function updateFilm(req, res) {
@@ -39,13 +47,20 @@ async function updateFilm(req, res) {
   if (!existing) {
     throw new ApiError("Film not found", 404);
   }
-  const { genre_id, description, poster, release_year, access_type, content_type, title } = req.body;
-  const film = await filmService.updateFilm(id, { genre_id, description, poster, release_year, access_type, content_type, title });
-  res.status(200).json({
-    message: "Film updated successfully",
-    data: film,
-    status: "success",
-  });
+  const { genre_id, description, poster, release_year, access_type, content_type, title, url_video } = req.body;
+  try {
+    const film = await filmService.updateFilm(id, { genre_id, description, poster, release_year, access_type, content_type, title, url_video });
+    res.status(200).json({
+      message: "Film updated successfully",
+      data: film,
+      status: "success",
+    });
+  } catch (error) {
+    if (error.code === "P2003") {
+      throw new ApiError("Genre not found", 400);
+    }
+    throw error;
+  }
 }
 
 async function deleteFilm(req, res) {

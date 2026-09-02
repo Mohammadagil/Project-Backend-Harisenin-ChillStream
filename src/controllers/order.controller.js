@@ -26,17 +26,29 @@ async function getOrderById(req, res) {
 
 async function createOrder(req, res) {
   const { user_id, package_id, order_date, status } = req.body;
-  const order = await orderService.createOrder({
-    user_id,
-    package_id,
-    order_date: order_date ? new Date(order_date) : new Date(),
-    status,
-  });
-  res.status(201).json({
-    message: "Order created successfully",
-    data: order,
-    status: "success",
-  });
+
+  const pendingCount = await orderService.countPendingOrdersByUserId(user_id);
+  if (pendingCount > 0) {
+    throw new ApiError("Anda masih memiliki order pending, selesaikan atau batalkan terlebih dahulu sebelum order baru", 409);
+  }
+  try {
+    const order = await orderService.createOrder({
+      user_id,
+      package_id,
+      order_date: order_date ? new Date(order_date) : new Date(),
+      status,
+    });
+    res.status(201).json({
+      message: "Order created successfully",
+      data: order,
+      status: "success",
+    });
+  } catch (error) {
+    if (error.code === "P2003") {
+      throw new ApiError("User or Package not found", 400);
+    }
+    throw error;
+  }
 }
 
 async function updateOrder(req, res) {
@@ -46,31 +58,24 @@ async function updateOrder(req, res) {
     throw new ApiError("Order not found", 404);
   }
   const { user_id, package_id, order_date, status } = req.body;
-  const order = await orderService.updateOrder(id, {
-    user_id,
-    package_id,
-    order_date: order_date ? new Date(order_date) : undefined,
-    status,
-  });
-  res.status(200).json({
-    message: "Order updated successfully",
-    data: order,
-    status: "success",
-  });
-}
-
-async function deleteOrder(req, res) {
-  const id = BigInt(req.params.id);
-  const existing = await orderService.getOrderById(id);
-  if (!existing) {
-    throw new ApiError("Order not found", 404);
+  try {
+    const order = await orderService.updateOrder(id, {
+      user_id,
+      package_id,
+      order_date: order_date ? new Date(order_date) : undefined,
+      status,
+    });
+    res.status(200).json({
+      message: "Order updated successfully",
+      data: order,
+      status: "success",
+    });
+  } catch (error) {
+    if (error.code === "P2003") {
+      throw new ApiError("User or Package not found", 400);
+    }
+    throw error;
   }
-  await orderService.deleteOrder(id);
-  res.status(200).json({
-    message: "Order deleted successfully",
-    data: null,
-    status: "success",
-  });
 }
 
 module.exports = {
@@ -78,5 +83,4 @@ module.exports = {
   getOrderById,
   createOrder,
   updateOrder,
-  deleteOrder,
 };

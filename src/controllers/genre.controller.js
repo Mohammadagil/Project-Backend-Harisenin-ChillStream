@@ -54,7 +54,14 @@ async function deleteGenre(req, res) {
   if (!existing) {
     throw new ApiError("Genre not found", 404);
   }
-  await genreService.deleteGenre(id);
+  try {
+    await genreService.deleteGenre(id);
+  } catch (error) {
+    if (error.code === "P2003") {
+      throw new ApiError("Genre masih dipakai oleh data film, hapus/ubah film tersebut terlebih dahulu", 409);
+    }
+    throw error;
+  }
   res.status(200).json({
     message: "Genre deleted successfully",
     data: null,
