@@ -28,7 +28,7 @@ REST API backend untuk aplikasi streaming film/series berlangganan — mengelola
 - Pencegahan order ganda: 1 user maksimal 1 order berstatus "pending", auto-expire setelah 24 jam
 - Nominal pembayaran (`amount`) otomatis mengikuti harga paket saat transaksi, tidak bisa dimanipulasi client
 - Watchlist pribadi per user (MyList), dengan pencegahan duplikat
-- Integrasi payment gateway (Midtrans) — *dalam pengembangan*
+- Pembayaran terintegrasi Midtrans Snap — request token pembayaran otomatis, status Order & Payment ter-update sendiri lewat webhook setelah user selesai bayar
 - Autentikasi & otorisasi berbasis role (register/login, JWT, kontrol akses admin) — *dalam pengembangan*
 - Kontrol akses konten premium berdasarkan status langganan aktif — *dalam pengembangan*
 
@@ -41,8 +41,8 @@ REST API backend untuk aplikasi streaming film/series berlangganan — mengelola
 | ORM | Prisma |
 | Auth *(rencana)* | JWT (`jsonwebtoken`), `bcrypt` |
 | Validasi *(rencana)* | Joi |
-| Payment Gateway *(rencana)* | Midtrans |
-| Tooling | nodemon, Prisma Studio |
+| Payment Gateway | Midtrans (`midtrans-client`, Snap + Core API) |
+| Tooling | nodemon, Prisma Studio, ngrok (tunnel lokal untuk testing webhook Midtrans) |
 
 ## Prasyarat
 
@@ -90,6 +90,9 @@ Server berjalan di `http://localhost:3000` (atau sesuai `PORT` di `.env`).
 | `DB_PASSWORD` | Password database | *(kosongkan jika tanpa password)* |
 | `DATABASE_URL` | Connection string untuk Prisma | `mysql://root:@127.0.0.1:3306/streaming_app` |
 | `PORT` | Port server Express | `3000` |
+| `MIDTRANS_SERVER_KEY` | Server key dari dashboard Midtrans (Sandbox → General Credentials) | *(lihat dashboard Midtrans)* |
+| `MIDTRANS_CLIENT_KEY` | Client key dari dashboard Midtrans (Sandbox → General Credentials) | *(lihat dashboard Midtrans)* |
+| `MIDTRANS_IS_PRODUCTION` | `false` untuk Sandbox, `true` untuk Production | `false` |
 
 ## Script yang Tersedia
 
@@ -114,6 +117,7 @@ src/
   index.js             # entry point: setup Express, mount routes, error handler
   config/
     prisma.js          # instance PrismaClient
+    midtrans.js         # instance Snap & CoreApi Midtrans
   utils/
     ApiError.js         # error kustom dengan statusCode
   routes/               # definisi endpoint per resource
@@ -201,8 +205,9 @@ Tidak ada endpoint `DELETE` untuk Order — catatan transaksi tidak pernah dihap
 |---|---|---|
 | `GET` | `/payments` | Daftar pembayaran (`?order_id=` untuk filter per order) |
 | `GET` | `/payments/:id` | Detail pembayaran |
-| `POST` | `/payments` | Catat pembayaran — `amount` otomatis mengikuti `Order.package.price`, `409` kalau order sudah punya payment |
+| `POST` | `/payments` | Buat transaksi Midtrans Snap untuk suatu order — `amount` otomatis mengikuti `Order.package.price`, `409` kalau order sudah punya payment, response berisi `snap_token` & `redirect_url` |
 | `PATCH` | `/payments/:id` | Hanya `method` yang bisa diubah — `amount` terkunci permanen setelah dibuat |
+| `POST` | `/payments/notification` | Webhook — menerima notifikasi status dari Midtrans, verifikasi signature otomatis, sinkronkan status Payment & Order |
 
 Tidak ada endpoint `DELETE` untuk Payment, dengan alasan yang sama seperti Order.
 
@@ -223,6 +228,7 @@ Terdiri dari 8 entity: `User`, `Package`, `Order`, `Payment`, `Genre`, `Film`, `
 - **Package**: tidak pernah dihapus permanen — `DELETE` menonaktifkan (`is_active: false`). `price`/`duration`/`name` terkunci begitu paket sudah dipakai minimal 1 order, untuk menjaga integritas riwayat transaksi.
 - **Order**: 1 user maksimal 1 order berstatus `"pending"` di waktu bersamaan. Order `"pending"` yang tidak diselesaikan dalam 24 jam otomatis jadi `"dibatalkan"`. Tidak ada endpoint hapus — pembatalan lewat perubahan status.
 - **Payment**: `amount` diambil otomatis dari harga Package saat transaksi dibuat, lalu dikunci permanen (tidak berubah meski harga Package berubah kemudian) — menjaga akurasi riwayat pembayaran. 1 Order maksimal 1 Payment. Tidak ada endpoint hapus.
+- **Payment Gateway**: status Payment & Order tidak pernah diisi manual — selalu mengikuti notifikasi webhook resmi dari Midtrans (`coreApi.transaction.notification`), yang otomatis memverifikasi signature. Notifikasi test dari dashboard Midtrans (transaksi contoh yang tidak benar-benar ada) diakui (`200`) tanpa diproses, supaya tidak mengubah data asli.
 - **Error handling**: kegagalan constraint database (foreign key tidak valid, data duplikat) diterjemahkan jadi response `400`/`409` yang jelas, bukan error mentah dari database.
 
 ## Roadmap
@@ -231,7 +237,7 @@ Terdiri dari 8 entity: `User`, `Package`, `Order`, `Payment`, `Genre`, `Film`, `
 - [x] CRUD Genre, Film, Episode, Package
 - [x] CRUD MyList, Order, Payment
 - [x] Pengerasan business logic: soft-delete, cascade delete, snapshot harga, pencegahan order ganda, penanganan error database
-- [ ] Integrasi payment gateway (Midtrans) — Snap Token & webhook status pembayaran
+- [x] Integrasi payment gateway (Midtrans) — Snap Token & webhook status pembayaran
 - [ ] Validasi request (Joi) di seluruh endpoint
 - [ ] Autentikasi: register & login (bcrypt + JWT)
 - [ ] Role-based authorization (endpoint manajemen konten khusus admin)
