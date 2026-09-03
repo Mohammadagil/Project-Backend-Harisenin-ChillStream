@@ -22,10 +22,13 @@ REST API backend untuk aplikasi streaming film/series berlangganan — mengelola
 
 ## Fitur
 
-- Manajemen katalog: Genre, Film/Series, dan Episode (CRUD penuh, relasi antar entity)
-- Manajemen paket langganan (Package)
-- Transaksi order & pencatatan pembayaran (Order, Payment)
+- Manajemen katalog: Genre, Film/Series, dan Episode (CRUD penuh, relasi antar entity, cascade delete)
+- Manajemen paket langganan (Package) dengan soft-delete, field harga/durasi terkunci begitu sudah dipakai order
+- Transaksi order & pencatatan pembayaran (Order, Payment) sebagai catatan permanen — tidak bisa dihapus, hanya berubah status
+- Pencegahan order ganda: 1 user maksimal 1 order berstatus "pending", auto-expire setelah 24 jam
+- Nominal pembayaran (`amount`) otomatis mengikuti harga paket saat transaksi, tidak bisa dimanipulasi client
 - Watchlist pribadi per user (MyList), dengan pencegahan duplikat
+- Integrasi payment gateway (Midtrans) — *dalam pengembangan*
 - Autentikasi & otorisasi berbasis role (register/login, JWT, kontrol akses admin) — *dalam pengembangan*
 - Kontrol akses konten premium berdasarkan status langganan aktif — *dalam pengembangan*
 
@@ -38,6 +41,7 @@ REST API backend untuk aplikasi streaming film/series berlangganan — mengelola
 | ORM | Prisma |
 | Auth *(rencana)* | JWT (`jsonwebtoken`), `bcrypt` |
 | Validasi *(rencana)* | Joi |
+| Payment Gateway *(rencana)* | Midtrans |
 | Tooling | nodemon, Prisma Studio |
 
 ## Prasyarat
@@ -147,9 +151,9 @@ Base URL: `/api`. Seluruh response mengikuti format berikut:
 |---|---|---|
 | `GET` | `/films` | Daftar seluruh film/series (beserta genre) |
 | `GET` | `/films/:id` | Detail film berdasarkan id |
-| `POST` | `/films` | Tambah film/series baru |
+| `POST` | `/films` | Tambah film/series baru — `url_video` diisi untuk movie tunggal (`content_type: 0`), dikosongkan untuk series |
 | `PATCH` | `/films/:id` | Ubah data film |
-| `DELETE` | `/films/:id` | Hapus film |
+| `DELETE` | `/films/:id` | Hapus film — episode & entri watchlist terkait ikut terhapus (cascade) |
 
 ### Episode
 
@@ -165,11 +169,11 @@ Base URL: `/api`. Seluruh response mengikuti format berikut:
 
 | Method | Endpoint | Deskripsi |
 |---|---|---|
-| `GET` | `/packages` | Daftar seluruh paket langganan |
-| `GET` | `/packages/:id` | Detail paket berdasarkan id |
+| `GET` | `/packages` | Daftar paket langganan yang aktif (`is_active: true`) |
+| `GET` | `/packages/:id` | Detail paket berdasarkan id (termasuk yang nonaktif) |
 | `POST` | `/packages` | Tambah paket baru |
-| `PATCH` | `/packages/:id` | Ubah data paket |
-| `DELETE` | `/packages/:id` | Hapus paket |
+| `PATCH` | `/packages/:id` | Ubah data paket — `409` kalau ubah `price`/`duration`/`name` pada paket yang sudah punya order; `is_active` selalu bisa diubah |
+| `DELETE` | `/packages/:id` | Nonaktifkan paket (soft-delete, set `is_active: false`) — data tidak dihapus permanen |
 
 ### MyList
 
@@ -184,11 +188,12 @@ Base URL: `/api`. Seluruh response mengikuti format berikut:
 
 | Method | Endpoint | Deskripsi |
 |---|---|---|
-| `GET` | `/orders` | Daftar order (`?user_id=` untuk filter per user) |
+| `GET` | `/orders` | Daftar order (`?user_id=` untuk filter per user); order "pending" >24 jam otomatis jadi "dibatalkan" |
 | `GET` | `/orders/:id` | Detail order |
-| `POST` | `/orders` | Buat order baru |
-| `PATCH` | `/orders/:id` | Ubah data/status order |
-| `DELETE` | `/orders/:id` | Hapus order |
+| `POST` | `/orders` | Buat order baru — `409` kalau user masih punya order berstatus "pending" |
+| `PATCH` | `/orders/:id` | Ubah data/status order — dipakai juga untuk membatalkan order (`status: "dibatalkan"`) |
+
+Tidak ada endpoint `DELETE` untuk Order — catatan transaksi tidak pernah dihapus permanen, pembatalan selalu lewat perubahan status.
 
 ### Payment
 
@@ -196,9 +201,10 @@ Base URL: `/api`. Seluruh response mengikuti format berikut:
 |---|---|---|
 | `GET` | `/payments` | Daftar pembayaran (`?order_id=` untuk filter per order) |
 | `GET` | `/payments/:id` | Detail pembayaran |
-| `POST` | `/payments` | Catat pembayaran untuk suatu order |
-| `PATCH` | `/payments/:id` | Ubah status pembayaran |
-| `DELETE` | `/payments/:id` | Hapus data pembayaran |
+| `POST` | `/payments` | Catat pembayaran — `amount` otomatis mengikuti `Order.package.price`, `409` kalau order sudah punya payment |
+| `PATCH` | `/payments/:id` | Hanya `method` yang bisa diubah — `amount` terkunci permanen setelah dibuat |
+
+Tidak ada endpoint `DELETE` untuk Payment, dengan alasan yang sama seperti Order.
 
 ### Auth *(dalam pengembangan)*
 
@@ -211,11 +217,21 @@ Base URL: `/api`. Seluruh response mengikuti format berikut:
 
 Terdiri dari 8 entity: `User`, `Package`, `Order`, `Payment`, `Genre`, `Film`, `Episode`, `MyList`, dengan relasi 1:N dan 1:1 sesuai kebutuhan bisnis (satu user banyak order, satu order satu payment, satu genre banyak film, dst). Dokumentasi perancangan lengkap (ERD notasi Chen & Crow's Foot, penjelasan indexing, tipe data, dan naming convention) tersedia terpisah dari repository ini.
 
+## Aturan Bisnis Utama
+
+- **Film**: movie tunggal (`content_type: 0`) menyimpan `url_video` langsung di data film; series (`content_type: 1`) menyimpan video per Episode. Menghapus Film otomatis menghapus Episode & entri MyList terkait (cascade).
+- **Package**: tidak pernah dihapus permanen — `DELETE` menonaktifkan (`is_active: false`). `price`/`duration`/`name` terkunci begitu paket sudah dipakai minimal 1 order, untuk menjaga integritas riwayat transaksi.
+- **Order**: 1 user maksimal 1 order berstatus `"pending"` di waktu bersamaan. Order `"pending"` yang tidak diselesaikan dalam 24 jam otomatis jadi `"dibatalkan"`. Tidak ada endpoint hapus — pembatalan lewat perubahan status.
+- **Payment**: `amount` diambil otomatis dari harga Package saat transaksi dibuat, lalu dikunci permanen (tidak berubah meski harga Package berubah kemudian) — menjaga akurasi riwayat pembayaran. 1 Order maksimal 1 Payment. Tidak ada endpoint hapus.
+- **Error handling**: kegagalan constraint database (foreign key tidak valid, data duplikat) diterjemahkan jadi response `400`/`409` yang jelas, bukan error mentah dari database.
+
 ## Roadmap
 
 - [x] Perancangan database & migration
 - [x] CRUD Genre, Film, Episode, Package
 - [x] CRUD MyList, Order, Payment
+- [x] Pengerasan business logic: soft-delete, cascade delete, snapshot harga, pencegahan order ganda, penanganan error database
+- [ ] Integrasi payment gateway (Midtrans) — Snap Token & webhook status pembayaran
 - [ ] Validasi request (Joi) di seluruh endpoint
 - [ ] Autentikasi: register & login (bcrypt + JWT)
 - [ ] Role-based authorization (endpoint manajemen konten khusus admin)
