@@ -8,6 +8,7 @@ const packageRoutes = require('./package.route');
 const myListRoutes = require('./mylist.route');
 const orderRoutes = require('./order.route');
 const paymentRoutes = require('./payment.route');
+const authRoutes = require('./auth.route');
 
 router.use('/genres', genreRoutes);
 router.use('/films', filmRoutes);
@@ -16,5 +17,6 @@ router.use('/packages', packageRoutes);
 router.use('/mylists', myListRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/auth', authRoutes);
 
 module.exports = router;
