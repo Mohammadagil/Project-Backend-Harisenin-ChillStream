@@ -5,8 +5,8 @@ async function main() {
   // password sementara plain text, akan diganti hash bcrypt di fase Auth (lewat endpoint register)
   await prisma.user.createMany({
     data: [
-      { name: "Agil Rofiqul", email: "agil@example.com", password: "password123" },
-      { name: "Rofiqul Zein", email: "rofiqul@example.com", password: "password123" },
+      { name: "Agil Rofiqul", username: "agilrofiqul", email: "agil@example.com", password: "password123" },
+      { name: "Rofiqul Zein", username: "rofiqulzein", email: "rofiqul@example.com", password: "password123" },
     ],
     skipDuplicates: true,
   });
@@ -218,6 +218,52 @@ async function main() {
   if (missingEpisodes.length > 0) {
     await prisma.episode.createMany({ data: missingEpisodes });
   }
+
+  await prisma.package.createMany({
+    data: [
+      { name: "Basic", price: 49000, duration: 30 },
+      { name: "Standard", price: 99000, duration: 30 },
+      { name: "Premium", price: 149000, duration: 30 },
+    ],
+    skipDuplicates: true,
+  });
+
+  const users = await prisma.user.findMany();
+  const userId = (username) => users.find((user) => user.username === username).id;
+
+  const packages = await prisma.package.findMany();
+  const packageId = (name) => packages.find((pkg) => pkg.name === name).id;
+
+  const orderSeedData = [
+    { user_id: userId("agilrofiqul"), package_id: packageId("Premium"), order_date: new Date(), status: "berhasil" },
+    { user_id: userId("rofiqulzein"), package_id: packageId("Basic"), order_date: new Date(), status: "pending" },
+  ];
+
+  const existingOrders = await prisma.order.findMany();
+  const missingOrders = orderSeedData.filter(
+    (data) => !existingOrders.some((order) => order.user_id === data.user_id && order.package_id === data.package_id)
+  );
+  if (missingOrders.length > 0) {
+    await prisma.order.createMany({ data: missingOrders });
+  }
+
+  const orders = await prisma.order.findMany();
+  const orderIdByUsername = (username) => orders.find((order) => order.user_id === userId(username)).id;
+
+  await prisma.payment.createMany({
+    data: [
+      { order_id: orderIdByUsername("agilrofiqul"), method: "midtrans", amount: 149000, status: "berhasil" },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.myList.createMany({
+    data: [
+      { user_id: userId("agilrofiqul"), film_id: filmId("The Last Horizon"), date_added: new Date() },
+      { user_id: userId("rofiqulzein"), film_id: filmId("Loved by Chance"), date_added: new Date() },
+    ],
+    skipDuplicates: true,
+  });
 
   console.log("Seeding selesai.");
 }
