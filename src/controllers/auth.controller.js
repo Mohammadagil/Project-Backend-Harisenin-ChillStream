@@ -25,6 +25,26 @@ async function register(req, res) {
   }
 }
 
+async function login(req, res) {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    throw new ApiError("email dan password wajib diisi", 400);
+  }
+
+  const token = await authService.loginUser({ email, password });
+  if (!token) {
+    throw new ApiError("Email atau password salah", 401);
+  }
+
+  res.status(200).json({
+    message: "Login successful",
+    data: { token },
+    status: "success",
+  });
+}
+
 module.exports = {
   register,
+  login,
 };
