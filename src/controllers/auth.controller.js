@@ -29,7 +29,7 @@ async function login(req, res) {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    throw new ApiError("email dan password wajib diisi", 400);
+    throw new ApiError("Email dan password wajib diisi", 400);
   }
 
   const token = await authService.loginUser({ email, password });
