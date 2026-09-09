@@ -2,7 +2,7 @@ const filmService = require("../services/film.service");
 const { ApiError } = require("../utils/ApiError");
 
 async function getAllFilms(req, res) {
-  const films = await filmService.getAllFilms();
+  const films = await filmService.getAllFilms(req.query);
   res.status(200).json({
     message: "Films retrieved successfully",
     data: films,
