@@ -235,11 +235,11 @@ Tidak ada endpoint `DELETE` untuk Payment, dengan alasan yang sama seperti Order
 
 ### Auth
 
-| Method | Endpoint                 | Deskripsi                                                                            | Auth  |
-| ------ | ------------------------ | ------------------------------------------------------------------------------------ | ----- |
+| Method | Endpoint                 | Deskripsi                                                                                                                                                                                                                                                            | Auth  |
+| ------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | `POST` | `/auth/register`         | Registrasi user baru — password di-hash `bcrypt`, mengirim email verifikasi otomatis. Response selalu `201` dengan pesan generik yang sama persis baik email sudah terdaftar atau belum (anti user-enumeration); `username` yang sudah dipakai tetap direspons `409` | Tidak |
-| `POST` | `/auth/login`            | Login, mengembalikan JWT (berlaku 1 hari). Email tidak ditemukan & password salah direspons `401` dengan pesan yang sama persis, supaya tidak bocorkan email mana yang terdaftar | Tidak |
-| `GET`  | `/auth/verifikasi-email` | Verifikasi akun lewat `?token=` yang dikirim ke email — token sekali pakai           | Tidak |
+| `POST` | `/auth/login`            | Login, mengembalikan JWT (berlaku 1 hari). Email tidak ditemukan & password salah direspons `401` dengan pesan yang sama persis, supaya tidak bocorkan email mana yang terdaftar                                                                                     | Tidak |
+| `GET`  | `/auth/verifikasi-email` | Verifikasi akun lewat `?token=` yang dikirim ke email — token sekali pakai                                                                                                                                                                                           | Tidak |
 
 ### Upload
 
