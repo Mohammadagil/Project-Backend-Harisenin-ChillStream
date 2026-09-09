@@ -30,6 +30,7 @@ REST API backend untuk aplikasi streaming film/series berlangganan — mengelola
 - Watchlist pribadi per user (MyList), dengan pencegahan duplikat
 - Pembayaran terintegrasi Midtrans Snap — request token pembayaran otomatis, status Order & Payment ter-update sendiri lewat webhook setelah user selesai bayar
 - Autentikasi berbasis JWT — register (password ter-hash `bcrypt`) & login, endpoint personal (MyList, Order, Payment) terproteksi middleware token
+- Proteksi anti user-enumeration — response register & login didesain supaya penyerang tidak bisa menebak akun mana yang valid
 - Verifikasi email saat registrasi — token unik (`uuid`) dikirim via email (`nodemailer`), sekali pakai
 - Filter, search, dan sort pada katalog Film lewat query params (`genre_id`, `access_type`, `content_type`, `search`, `sort_by`, `order`)
 - Upload gambar (poster, dll) lewat endpoint khusus (`multer`), tersimpan di server & bisa diakses lewat URL statis
@@ -236,8 +237,8 @@ Tidak ada endpoint `DELETE` untuk Payment, dengan alasan yang sama seperti Order
 
 | Method | Endpoint                 | Deskripsi                                                                            | Auth  |
 | ------ | ------------------------ | ------------------------------------------------------------------------------------ | ----- |
-| `POST` | `/auth/register`         | Registrasi user baru — password di-hash `bcrypt`, mengirim email verifikasi otomatis | Tidak |
-| `POST` | `/auth/login`            | Login, mengembalikan JWT (berlaku 1 hari)                                            | Tidak |
+| `POST` | `/auth/register`         | Registrasi user baru — password di-hash `bcrypt`, mengirim email verifikasi otomatis. Response selalu `201` dengan pesan generik yang sama persis baik email sudah terdaftar atau belum (anti user-enumeration); `username` yang sudah dipakai tetap direspons `409` | Tidak |
+| `POST` | `/auth/login`            | Login, mengembalikan JWT (berlaku 1 hari). Email tidak ditemukan & password salah direspons `401` dengan pesan yang sama persis, supaya tidak bocorkan email mana yang terdaftar | Tidak |
 | `GET`  | `/auth/verifikasi-email` | Verifikasi akun lewat `?token=` yang dikirim ke email — token sekali pakai           | Tidak |
 
 ### Upload
@@ -260,6 +261,7 @@ Terdiri dari 8 entity: `User`, `Package`, `Order`, `Payment`, `Genre`, `Film`, `
 - **Payment**: `amount` diambil otomatis dari harga Package saat transaksi dibuat, lalu dikunci permanen (tidak berubah meski harga Package berubah kemudian) — menjaga akurasi riwayat pembayaran. 1 Order maksimal 1 Payment. Tidak ada endpoint hapus.
 - **Payment Gateway**: status Payment & Order tidak pernah diisi manual — selalu mengikuti notifikasi webhook resmi dari Midtrans (`coreApi.transaction.notification`), yang otomatis memverifikasi signature. Notifikasi test dari dashboard Midtrans (transaksi contoh yang tidak benar-benar ada) diakui (`200`) tanpa diproses, supaya tidak mengubah data asli.
 - **Error handling**: kegagalan constraint database (foreign key tidak valid, data duplikat) diterjemahkan jadi response `400`/`409` yang jelas, bukan error mentah dari database.
+- **Auth (anti user-enumeration)**: `POST /auth/register` sengaja tidak pernah membocorkan apakah suatu email sudah terdaftar — kalau email sudah dipakai, request tetap direspons `201` dengan pesan sukses generik yang identik, tanpa insert data baru dan tanpa kirim email verifikasi. `username` dikecualikan dari aturan ini (tetap direspons `409` kalau sudah dipakai) karena sifatnya memang harus dipilih interaktif oleh user. Pola yang sama diterapkan di `POST /auth/login` — email tidak ditemukan dan password salah menghasilkan pesan error yang sama persis.
 
 ## Roadmap
 
@@ -273,6 +275,7 @@ Terdiri dari 8 entity: `User`, `Package`, `Order`, `Payment`, `Genre`, `Film`, `
 - [x] Filter, search, & sort pada katalog Film lewat query params
 - [x] Verifikasi email saat registrasi (nodemailer + uuid, token sekali pakai)
 - [x] Upload gambar (multer) dengan validasi tipe file & batas ukuran
+- [x] Proteksi anti user-enumeration pada register & login
 - [ ] Validasi request (Joi) di seluruh endpoint
 - [ ] Role-based authorization (endpoint manajemen konten khusus admin)
 - [ ] Kontrol akses konten premium berdasarkan status langganan aktif

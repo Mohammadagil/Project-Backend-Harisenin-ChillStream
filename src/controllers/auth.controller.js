@@ -9,20 +9,18 @@ async function register(req, res) {
   }
 
   try {
-    const user = await authService.registerUser({ name, username, email, password });
-    res.status(201).json({
-      message: "User registered successfully",
-      data: user,
-      status: "success",
-    });
+    await authService.registerUser({ name, username, email, password });
   } catch (error) {
-    if (error.code === "P2002") {
-      const target = String(error.meta?.target ?? "");
-      const field = target.includes("email") ? "email" : target.includes("username") ? "username" : "data";
-      throw new ApiError(`${field} sudah terdaftar`, 409);
+    if (error.code === "USERNAME_EXISTS") {
+      throw new ApiError("Username sudah terdaftar", 409);
     }
     throw error;
   }
+  res.status(201).json({
+    message: "Registrasi diproses. Jika email valid dan belum terdaftar, cek inbox untuk link verifikasi.",
+    data: null,
+    status: "success",
+  });
 }
 
 async function login(req, res) {

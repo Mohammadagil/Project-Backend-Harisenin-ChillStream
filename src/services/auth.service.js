@@ -7,17 +7,34 @@ const { sendVerificationEmail } = require("../config/mailer");
 const SALT_ROUNDS = 10;
 
 async function registerUser({ name, username, email, password }) {
+  const existingUsername = await prisma.user.findUnique({ where: { username } });
+  if (existingUsername) {
+    const error = new Error("Username sudah terdaftar");
+    error.code = "USERNAME_EXISTS";
+    throw error;
+  }
+
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+  const existingEmail = await prisma.user.findUnique({ where: { email } });
+  if (existingEmail) {
+    return;
+  }
+
   const verificationToken = uuidv4();
 
-  const user = await prisma.user.create({
-    data: { name, username, email, password: hashedPassword, verification_token: verificationToken },
-  });
+  try {
+    const user = await prisma.user.create({
+      data: { name, username, email, password: hashedPassword, verification_token: verificationToken },
+    });
 
-  await sendVerificationEmail(user.email, verificationToken);
-
-  const { password: _password, verification_token, ...userWithoutSensitiveData } = user;
-  return userWithoutSensitiveData;
+    await sendVerificationEmail(user.email, verificationToken);
+  } catch (error) {
+    if (error.code === "P2002") {
+      return;
+    }
+    throw error;
+  }
 }
 
 async function findUserByEmail(email) {
