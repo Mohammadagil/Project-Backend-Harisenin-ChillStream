@@ -29,20 +29,26 @@ REST API backend untuk aplikasi streaming film/series berlangganan — mengelola
 - Nominal pembayaran (`amount`) otomatis mengikuti harga paket saat transaksi, tidak bisa dimanipulasi client
 - Watchlist pribadi per user (MyList), dengan pencegahan duplikat
 - Pembayaran terintegrasi Midtrans Snap — request token pembayaran otomatis, status Order & Payment ter-update sendiri lewat webhook setelah user selesai bayar
-- Autentikasi & otorisasi berbasis role (register/login, JWT, kontrol akses admin) — *dalam pengembangan*
-- Kontrol akses konten premium berdasarkan status langganan aktif — *dalam pengembangan*
+- Autentikasi berbasis JWT — register (password ter-hash `bcrypt`) & login, endpoint personal (MyList, Order, Payment) terproteksi middleware token
+- Verifikasi email saat registrasi — token unik (`uuid`) dikirim via email (`nodemailer`), sekali pakai
+- Filter, search, dan sort pada katalog Film lewat query params (`genre_id`, `access_type`, `content_type`, `search`, `sort_by`, `order`)
+- Upload gambar (poster, dll) lewat endpoint khusus (`multer`), tersimpan di server & bisa diakses lewat URL statis
+- Role-based authorization (endpoint manajemen konten khusus admin) — _dalam pengembangan_
+- Kontrol akses konten premium berdasarkan status langganan aktif — _dalam pengembangan_
 
 ## Tech Stack
 
-| Kategori | Teknologi |
-|---|---|
-| Runtime & Framework | Node.js, Express 5 |
-| Database | MySQL |
-| ORM | Prisma |
-| Auth *(rencana)* | JWT (`jsonwebtoken`), `bcrypt` |
-| Validasi *(rencana)* | Joi |
-| Payment Gateway | Midtrans (`midtrans-client`, Snap + Core API) |
-| Tooling | nodemon, Prisma Studio, ngrok (tunnel lokal untuk testing webhook Midtrans) |
+| Kategori             | Teknologi                                                                   |
+| -------------------- | --------------------------------------------------------------------------- |
+| Runtime & Framework  | Node.js, Express 5                                                          |
+| Database             | MySQL                                                                       |
+| ORM                  | Prisma                                                                      |
+| Auth                 | JWT (`jsonwebtoken`), `bcrypt`                                              |
+| Email                | `nodemailer` (verifikasi akun), `uuid` (generate token)                     |
+| Upload File          | `multer`                                                                    |
+| Validasi _(rencana)_ | Joi                                                                         |
+| Payment Gateway      | Midtrans (`midtrans-client`, Snap + Core API)                               |
+| Tooling              | nodemon, Prisma Studio, ngrok (tunnel lokal untuk testing webhook Midtrans) |
 
 ## Prasyarat
 
@@ -80,31 +86,38 @@ Server berjalan di `http://localhost:3000` (atau sesuai `PORT` di `.env`).
 
 ## Environment Variables
 
-| Variabel | Deskripsi | Contoh |
-|---|---|---|
-| `DB_CONNECTION` | Driver database | `mysql` |
-| `DB_HOST` | Host database | `127.0.0.1` |
-| `DB_PORT` | Port database | `3306` |
-| `DB_DATABASE` | Nama database | `streaming_app` |
-| `DB_USERNAME` | Username database | `root` |
-| `DB_PASSWORD` | Password database | *(kosongkan jika tanpa password)* |
-| `DATABASE_URL` | Connection string untuk Prisma | `mysql://root:@127.0.0.1:3306/streaming_app` |
-| `PORT` | Port server Express | `3000` |
-| `MIDTRANS_SERVER_KEY` | Server key dari dashboard Midtrans (Sandbox → General Credentials) | *(lihat dashboard Midtrans)* |
-| `MIDTRANS_CLIENT_KEY` | Client key dari dashboard Midtrans (Sandbox → General Credentials) | *(lihat dashboard Midtrans)* |
-| `MIDTRANS_IS_PRODUCTION` | `false` untuk Sandbox, `true` untuk Production | `false` |
+| Variabel                 | Deskripsi                                                                | Contoh                                          |
+| ------------------------ | ------------------------------------------------------------------------ | ----------------------------------------------- |
+| `DB_CONNECTION`          | Driver database                                                          | `mysql`                                         |
+| `DB_HOST`                | Host database                                                            | `127.0.0.1`                                     |
+| `DB_PORT`                | Port database                                                            | `3306`                                          |
+| `DB_DATABASE`            | Nama database                                                            | `streaming_app`                                 |
+| `DB_USERNAME`            | Username database                                                        | `root`                                          |
+| `DB_PASSWORD`            | Password database                                                        | _(kosongkan jika tanpa password)_               |
+| `DATABASE_URL`           | Connection string untuk Prisma                                           | `mysql://root:@127.0.0.1:3306/streaming_app`    |
+| `PORT`                   | Port server Express                                                      | `3000`                                          |
+| `MIDTRANS_SERVER_KEY`    | Server key dari dashboard Midtrans (Sandbox → General Credentials)       | _(lihat dashboard Midtrans)_                    |
+| `MIDTRANS_CLIENT_KEY`    | Client key dari dashboard Midtrans (Sandbox → General Credentials)       | _(lihat dashboard Midtrans)_                    |
+| `MIDTRANS_IS_PRODUCTION` | `false` untuk Sandbox, `true` untuk Production                           | `false`                                         |
+| `JWT_SECRET`             | Secret key untuk menandatangani & memverifikasi JWT                      | _(string acak yang panjang & rahasia)_          |
+| `MAIL_HOST`              | Host SMTP untuk kirim email verifikasi                                   | `smtp.ethereal.email`                           |
+| `MAIL_PORT`              | Port SMTP                                                                | `587`                                           |
+| `MAIL_USER`              | Username SMTP                                                            | _(lihat provider SMTP, mis. Ethereal/Mailtrap)_ |
+| `MAIL_PASS`              | Password SMTP                                                            | _(lihat provider SMTP)_                         |
+| `MAIL_FROM`              | Alamat pengirim email                                                    | `"ChillStream <no-reply@chillstream.com>"`      |
+| `APP_URL`                | Base URL aplikasi, dipakai untuk link verifikasi email & URL file upload | `http://localhost:3000`                         |
 
 ## Script yang Tersedia
 
-| Perintah | Fungsi |
-|---|---|
-| `npm run dev` | Jalankan server dengan auto-reload (nodemon) |
-| `npm start` | Jalankan server (production) |
-| `npm run migrate` | Jalankan Prisma migration (development) |
-| `npm run migrate:deploy` | Terapkan migration yang sudah ada (production/CI) |
-| `npm run generate` | Generate Prisma Client dari schema |
-| `npm run seed` | Isi database dengan data awal (Genre, Film, Episode, User dummy) |
-| `npm run studio` | Buka Prisma Studio (GUI database di browser) |
+| Perintah                 | Fungsi                                                           |
+| ------------------------ | ---------------------------------------------------------------- |
+| `npm run dev`            | Jalankan server dengan auto-reload (nodemon)                     |
+| `npm start`              | Jalankan server (production)                                     |
+| `npm run migrate`        | Jalankan Prisma migration (development)                          |
+| `npm run migrate:deploy` | Terapkan migration yang sudah ada (production/CI)                |
+| `npm run generate`       | Generate Prisma Client dari schema                               |
+| `npm run seed`           | Isi database dengan data awal (Genre, Film, Episode, User dummy) |
+| `npm run studio`         | Buka Prisma Studio (GUI database di browser)                     |
 
 ## Struktur Proyek
 
@@ -114,17 +127,21 @@ prisma/
   migrations/          # riwayat migration
   seed.js              # data awal untuk testing
 src/
-  index.js             # entry point: setup Express, mount routes, error handler
+  index.js             # entry point: setup Express, mount routes, static /uploads, error handler
   config/
     prisma.js          # instance PrismaClient
     midtrans.js         # instance Snap & CoreApi Midtrans
+    mailer.js           # transporter nodemailer + kirim email verifikasi
   utils/
     ApiError.js         # error kustom dengan statusCode
   routes/               # definisi endpoint per resource
   controllers/          # menerima request, memanggil service, membentuk response
   services/             # logic bisnis & akses Prisma
   validators/           # skema validasi request (Joi) — menyusul
-  middlewares/           # authenticate, authorize, validate — menyusul
+  middlewares/
+    auth.middleware.js  # verifyToken — validasi JWT dari header Authorization
+    upload.middleware.js # konfigurasi multer (storage, fileFilter, limit ukuran)
+uploads/                # file hasil upload (diabaikan git, kecuali .gitkeep)
 ```
 
 ## Dokumentasi API
@@ -141,86 +158,99 @@ Base URL: `/api`. Seluruh response mengikuti format berikut:
 
 ### Genre
 
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `GET` | `/genres` | Daftar seluruh genre |
-| `GET` | `/genres/:id` | Detail genre berdasarkan id |
-| `POST` | `/genres` | Tambah genre baru |
-| `PATCH` | `/genres/:id` | Ubah data genre |
-| `DELETE` | `/genres/:id` | Hapus genre |
+| Method   | Endpoint      | Deskripsi                   |
+| -------- | ------------- | --------------------------- |
+| `GET`    | `/genres`     | Daftar seluruh genre        |
+| `GET`    | `/genres/:id` | Detail genre berdasarkan id |
+| `POST`   | `/genres`     | Tambah genre baru           |
+| `PATCH`  | `/genres/:id` | Ubah data genre             |
+| `DELETE` | `/genres/:id` | Hapus genre                 |
 
 ### Film
 
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `GET` | `/films` | Daftar seluruh film/series (beserta genre) |
-| `GET` | `/films/:id` | Detail film berdasarkan id |
-| `POST` | `/films` | Tambah film/series baru — `url_video` diisi untuk movie tunggal (`content_type: 0`), dikosongkan untuk series |
-| `PATCH` | `/films/:id` | Ubah data film |
-| `DELETE` | `/films/:id` | Hapus film — episode & entri watchlist terkait ikut terhapus (cascade) |
+| Method   | Endpoint     | Deskripsi                                                                                                                                                                                      |
+| -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/films`     | Daftar film/series (beserta genre) — mendukung `?genre_id=`, `?access_type=`, `?content_type=` (filter), `?search=` (cari judul), `?sort_by=title\|release_year\|id&order=asc\|desc` (urutkan) |
+| `GET`    | `/films/:id` | Detail film berdasarkan id                                                                                                                                                                     |
+| `POST`   | `/films`     | Tambah film/series baru — `url_video` diisi untuk movie tunggal (`content_type: 0`), dikosongkan untuk series                                                                                  |
+| `PATCH`  | `/films/:id` | Ubah data film                                                                                                                                                                                 |
+| `DELETE` | `/films/:id` | Hapus film — episode & entri watchlist terkait ikut terhapus (cascade)                                                                                                                         |
 
 ### Episode
 
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `GET` | `/episodes` | Daftar episode (`?film_id=` untuk filter per film) |
-| `GET` | `/episodes/:id` | Detail episode berdasarkan id |
-| `POST` | `/episodes` | Tambah episode baru |
-| `PATCH` | `/episodes/:id` | Ubah data episode |
-| `DELETE` | `/episodes/:id` | Hapus episode |
+| Method   | Endpoint        | Deskripsi                                          |
+| -------- | --------------- | -------------------------------------------------- |
+| `GET`    | `/episodes`     | Daftar episode (`?film_id=` untuk filter per film) |
+| `GET`    | `/episodes/:id` | Detail episode berdasarkan id                      |
+| `POST`   | `/episodes`     | Tambah episode baru                                |
+| `PATCH`  | `/episodes/:id` | Ubah data episode                                  |
+| `DELETE` | `/episodes/:id` | Hapus episode                                      |
 
 ### Package
 
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `GET` | `/packages` | Daftar paket langganan yang aktif (`is_active: true`) |
-| `GET` | `/packages/:id` | Detail paket berdasarkan id (termasuk yang nonaktif) |
-| `POST` | `/packages` | Tambah paket baru |
-| `PATCH` | `/packages/:id` | Ubah data paket — `409` kalau ubah `price`/`duration`/`name` pada paket yang sudah punya order; `is_active` selalu bisa diubah |
-| `DELETE` | `/packages/:id` | Nonaktifkan paket (soft-delete, set `is_active: false`) — data tidak dihapus permanen |
+| Method   | Endpoint        | Deskripsi                                                                                                                      |
+| -------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`    | `/packages`     | Daftar paket langganan yang aktif (`is_active: true`)                                                                          |
+| `GET`    | `/packages/:id` | Detail paket berdasarkan id (termasuk yang nonaktif)                                                                           |
+| `POST`   | `/packages`     | Tambah paket baru                                                                                                              |
+| `PATCH`  | `/packages/:id` | Ubah data paket — `409` kalau ubah `price`/`duration`/`name` pada paket yang sudah punya order; `is_active` selalu bisa diubah |
+| `DELETE` | `/packages/:id` | Nonaktifkan paket (soft-delete, set `is_active: false`) — data tidak dihapus permanen                                          |
 
 ### MyList
 
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `GET` | `/mylists` | Daftar watchlist (`?user_id=` untuk filter per user) |
-| `GET` | `/mylists/:id` | Detail entri watchlist |
-| `POST` | `/mylists` | Tambah film ke watchlist (`409` jika sudah ada) |
-| `DELETE` | `/mylists/:id` | Hapus dari watchlist |
+Seluruh endpoint di bawah butuh header `Authorization: Bearer <token>`.
+
+| Method   | Endpoint       | Deskripsi                                            |
+| -------- | -------------- | ---------------------------------------------------- |
+| `GET`    | `/mylists`     | Daftar watchlist (`?user_id=` untuk filter per user) |
+| `GET`    | `/mylists/:id` | Detail entri watchlist                               |
+| `POST`   | `/mylists`     | Tambah film ke watchlist (`409` jika sudah ada)      |
+| `DELETE` | `/mylists/:id` | Hapus dari watchlist                                 |
 
 ### Order
 
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `GET` | `/orders` | Daftar order (`?user_id=` untuk filter per user); order "pending" >24 jam otomatis jadi "dibatalkan" |
-| `GET` | `/orders/:id` | Detail order |
-| `POST` | `/orders` | Buat order baru — `409` kalau user masih punya order berstatus "pending" |
-| `PATCH` | `/orders/:id` | Ubah data/status order — dipakai juga untuk membatalkan order (`status: "dibatalkan"`) |
+Seluruh endpoint di bawah butuh header `Authorization: Bearer <token>`.
+
+| Method  | Endpoint      | Deskripsi                                                                                            |
+| ------- | ------------- | ---------------------------------------------------------------------------------------------------- |
+| `GET`   | `/orders`     | Daftar order (`?user_id=` untuk filter per user); order "pending" >24 jam otomatis jadi "dibatalkan" |
+| `GET`   | `/orders/:id` | Detail order                                                                                         |
+| `POST`  | `/orders`     | Buat order baru — `409` kalau user masih punya order berstatus "pending"                             |
+| `PATCH` | `/orders/:id` | Ubah data/status order — dipakai juga untuk membatalkan order (`status: "dibatalkan"`)               |
 
 Tidak ada endpoint `DELETE` untuk Order — catatan transaksi tidak pernah dihapus permanen, pembatalan selalu lewat perubahan status.
 
 ### Payment
 
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `GET` | `/payments` | Daftar pembayaran (`?order_id=` untuk filter per order) |
-| `GET` | `/payments/:id` | Detail pembayaran |
-| `POST` | `/payments` | Buat transaksi Midtrans Snap untuk suatu order — `amount` otomatis mengikuti `Order.package.price`, `409` kalau order sudah punya payment, response berisi `snap_token` & `redirect_url` |
-| `PATCH` | `/payments/:id` | Hanya `method` yang bisa diubah — `amount` terkunci permanen setelah dibuat |
-| `POST` | `/payments/notification` | Webhook — menerima notifikasi status dari Midtrans, verifikasi signature otomatis, sinkronkan status Payment & Order |
+| Method  | Endpoint                 | Deskripsi                                                                                                                                                                                | Auth                                              |
+| ------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `GET`   | `/payments`              | Daftar pembayaran (`?order_id=` untuk filter per order)                                                                                                                                  | Ya                                                |
+| `GET`   | `/payments/:id`          | Detail pembayaran                                                                                                                                                                        | Ya                                                |
+| `POST`  | `/payments`              | Buat transaksi Midtrans Snap untuk suatu order — `amount` otomatis mengikuti `Order.package.price`, `409` kalau order sudah punya payment, response berisi `snap_token` & `redirect_url` | Ya                                                |
+| `PATCH` | `/payments/:id`          | Hanya `method` yang bisa diubah — `amount` terkunci permanen setelah dibuat                                                                                                              | Ya                                                |
+| `POST`  | `/payments/notification` | Webhook — menerima notifikasi status dari Midtrans, verifikasi signature otomatis, sinkronkan status Payment & Order                                                                     | **Tidak** (dipanggil server Midtrans, bukan user) |
 
 Tidak ada endpoint `DELETE` untuk Payment, dengan alasan yang sama seperti Order.
 
-### Auth *(dalam pengembangan)*
+### Auth
 
-| Method | Endpoint | Deskripsi | Auth |
-|---|---|---|---|
-| `POST` | `/auth/register` | Registrasi user baru | Tidak |
-| `POST` | `/auth/login` | Login, mengembalikan JWT | Tidak |
+| Method | Endpoint                 | Deskripsi                                                                            | Auth  |
+| ------ | ------------------------ | ------------------------------------------------------------------------------------ | ----- |
+| `POST` | `/auth/register`         | Registrasi user baru — password di-hash `bcrypt`, mengirim email verifikasi otomatis | Tidak |
+| `POST` | `/auth/login`            | Login, mengembalikan JWT (berlaku 1 hari)                                            | Tidak |
+| `GET`  | `/auth/verifikasi-email` | Verifikasi akun lewat `?token=` yang dikirim ke email — token sekali pakai           | Tidak |
+
+### Upload
+
+| Method | Endpoint  | Deskripsi                                                                                                                                          | Auth  |
+| ------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `POST` | `/upload` | Upload 1 file gambar (field form-data `image`) — hanya jpeg/png/webp, maks 5MB. Response berisi `url` untuk akses file lewat `/uploads/<filename>` | Tidak |
 
 ## Skema Database
 
 Terdiri dari 8 entity: `User`, `Package`, `Order`, `Payment`, `Genre`, `Film`, `Episode`, `MyList`, dengan relasi 1:N dan 1:1 sesuai kebutuhan bisnis (satu user banyak order, satu order satu payment, satu genre banyak film, dst). Dokumentasi perancangan lengkap (ERD notasi Chen & Crow's Foot, penjelasan indexing, tipe data, dan naming convention) tersedia terpisah dari repository ini.
+
+`User` punya field tambahan untuk kebutuhan auth: `username` (unique), `password` (hash bcrypt), `role`, `is_verified`, dan `verification_token` (unique, nullable — di-null-kan lagi setelah email berhasil diverifikasi).
 
 ## Aturan Bisnis Utama
 
@@ -238,8 +268,12 @@ Terdiri dari 8 entity: `User`, `Package`, `Order`, `Payment`, `Genre`, `Film`, `
 - [x] CRUD MyList, Order, Payment
 - [x] Pengerasan business logic: soft-delete, cascade delete, snapshot harga, pencegahan order ganda, penanganan error database
 - [x] Integrasi payment gateway (Midtrans) — Snap Token & webhook status pembayaran
+- [x] Autentikasi: register & login (bcrypt + JWT)
+- [x] Middleware `verifyToken` — proteksi endpoint MyList, Order, Payment
+- [x] Filter, search, & sort pada katalog Film lewat query params
+- [x] Verifikasi email saat registrasi (nodemailer + uuid, token sekali pakai)
+- [x] Upload gambar (multer) dengan validasi tipe file & batas ukuran
 - [ ] Validasi request (Joi) di seluruh endpoint
-- [ ] Autentikasi: register & login (bcrypt + JWT)
 - [ ] Role-based authorization (endpoint manajemen konten khusus admin)
 - [ ] Kontrol akses konten premium berdasarkan status langganan aktif
 - [ ] Testing menyeluruh (kasus sukses, validasi gagal, unauthorized, forbidden, not found)
