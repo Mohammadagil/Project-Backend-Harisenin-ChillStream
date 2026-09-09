@@ -62,6 +62,8 @@ model User {
   email    String @unique @db.VarChar(150)
   password String @db.VarChar(255)
   role     String @default("user") @db.VarChar(20)
+  is_verified Boolean @default(false)
+  verification_token String? @unique @db.VarChar(255)
 
   orders   Order[]
   my_lists MyList[]

@@ -1,16 +1,23 @@
-const bcrypt = require("bcrypt")
+const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/prisma");
+const { v4: uuidv4 } = require("uuid");
+const { sendVerificationEmail } = require("../config/mailer");
 
 const SALT_ROUNDS = 10;
 
 async function registerUser({ name, username, email, password }) {
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+  const verificationToken = uuidv4();
+
   const user = await prisma.user.create({
-    data: { name, username, email, password: hashedPassword },
+    data: { name, username, email, password: hashedPassword, verification_token: verificationToken },
   });
-  const { password: _password, ...userWithoutPassword } = user;
-  return userWithoutPassword;
+
+  await sendVerificationEmail(user.email, verificationToken);
+
+  const { password: _password, verification_token, ...userWithoutSensitiveData } = user;
+  return userWithoutSensitiveData;
 }
 
 async function findUserByEmail(email) {
@@ -31,7 +38,20 @@ async function loginUser({ email, password }) {
   return jwt.sign({ id: user.id.toString(), role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
 }
 
+async function verifyEmail(token) {
+  const user = await prisma.user.findUnique({ where: { verification_token: token } });
+  if (!user) {
+    return null;
+  }
+
+  return prisma.user.update({
+    where: { id: user.id },
+    data: { is_verified: true, verification_token: null },
+  });
+}
+
 module.exports = {
   registerUser,
   loginUser,
+  verifyEmail,
 };

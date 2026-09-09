@@ -44,7 +44,27 @@ async function login(req, res) {
   });
 }
 
+async function verifyEmail(req, res) {
+  const { token } = req.query;
+
+  if (!token) {
+    throw new ApiError("Invalid Verification Token", 400);
+  }
+
+  const user = await authService.verifyEmail(token);
+  if (!user) {
+    throw new ApiError("Invalid Verification Token", 400);
+  }
+
+  res.status(200).json({
+    message: "Email Verified Successfully",
+    data: null,
+    status: "success",
+  });
+}
+
 module.exports = {
   register,
   login,
+  verifyEmail,
 };
